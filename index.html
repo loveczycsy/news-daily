@@ -490,80 +490,84 @@ function openModal(item){
   modalTime.textContent=fmtFullTime(item.pubDate);
   btnOriginal.href=item.link;
   
-  // Show summary first, then try to fetch full article
-  if(item.desc){
-    modalBody.innerHTML='<div style="color:var(--t2);line-height:1.8;font-size:15px">'+esc(item.desc)+'</div><div id="articleLoader" style="margin-top:16px;padding:12px;background:rgba(0,210,255,0.06);border-radius:8px;border:1px solid rgba(0,210,255,0.15);font-size:13px;color:var(--t3)">⏳ 正在加载全文...</div>';
+  // Show description as main content
+  const hasDesc=item.desc&&item.desc.length>10;
+  let html='';
+  if(hasDesc){
+    html='<div class="article-full-content"><p>'+esc(item.desc)+'</p></div>';
   }else{
-    modalBody.innerHTML='<div id="articleLoader" style="padding:12px;background:rgba(0,210,255,0.06);border-radius:8px;font-size:13px;color:var(--t3)">⏳ 正在加载全文...</div>';
+    html='<div style="color:var(--t3);text-align:center;padding:30px 0"><div style="font-size:36px;margin-bottom:12px">📄</div><p>暂无摘要</p></div>';
   }
+  html+='<div id="articleLoader" style="margin-top:12px"></div>';
+  modalBody.innerHTML=html;
   modal.classList.add('show');
   
-  // Try to fetch full article content via CORS proxy
-  if(item.link && !item.link.includes('xiaohongshu.com')){
-    fetchArticle(item.link, item.sid);
-  }else{
-    const loader=document.getElementById('articleLoader');
-    if(loader)loader.innerHTML='💡 点击下方「跳转原文」查看完整内容';
+  // Try fetching full article in background (non-blocking)
+  if(item.link&&!item.link.includes('xiaohongshu.com')&&hasDesc){
+    fetchArticle(item.link,item.sid);
   }
+}
 }
 
 async function fetchArticle(url,sid){
   const loader=document.getElementById('articleLoader');
   if(!loader)return;
   try{
-    // Try direct fetch first (faster, works for CORS-friendly sites)
-    let html=null;
-    try{
-      const r=await ft(url,6000);
-      if(r.ok)html=await r.text();
-    }catch(e){}
-    // Fallback to CORS proxy
-    if(!html){
-      loader.innerHTML='⏳ 通过代理加载中...';
-      const proxyUrl=CORS_PROXY+encodeURIComponent(url);
-      const r=await ft(proxyUrl,12000);
-      if(!r.ok)throw new Error('HTTP '+r.status);
-      html=await r.text();
-    }
-    const doc=new DOMParser().parseFromString(html,'text/html');
+    const proxyUrl=CORS_PROXY+encodeURIComponent(url);
+    const r=await ft(proxyUrl,10000);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const html=await r.text();
     let content='';
-    
-    // 参考消息：contentTxt变量
-    if(url.includes('cankaoxiaoxi.com')){
-      const scripts=doc.querySelectorAll('script');
-      for(const s of scripts){
-        const m=s.textContent.match(/var\s+contentTxt\s*=\s*["']([\s\S]*?)["'];/);
-        if(m){content=m[1].replace(/\\\//g,'/').replace(/\\n/g,'\n').replace(/style=\"[^\"]*\"/gi,'');break;}
+
+    // 参考消息：从原始HTML中提取contentTxt
+    if(url.includes('cankaoxiaoxi.com')||url.includes('ckxx.net')){
+      const m=html.match(/var\s+contentTxt\s*=\s*["']([\s\S]*?)["'];/);
+      if(m){
+        content=m[1].replace(/\\\//g,'/').replace(/\\n/g,'').replace(/\\["']/g,'"');
+        content=content.replace(/style=\"[^\"]*\"/gi,'');
       }
     }
     // 中新网
-    if(!content && url.includes('chinanews.com')){
-      const art=doc.querySelector('.left_zw,.content,.article-content,#cont');
-      if(art){art.querySelectorAll('script,style').forEach(e=>e.remove());content=art.innerHTML;}
+    if(!content&&url.includes('chinanews.com')){
+      const m=html.match(/<div[^>]*class=\"left_zw\"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/);
+      if(m)content=m[1];
+      else{
+        const m2=html.match(/<div[^>]*class=\"content\"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/);
+        if(m2)content=m2[1];
+      }
     }
-    // Nature / Science
-    if(!content && (url.includes('nature.com')||url.includes('science.org'))){
+    // Nature/Science
+    if(!content&&(url.includes('nature.com')||url.includes('science.org'))){
+      const doc=new DOMParser().parseFromString(html,'text/html');
       const ab=doc.querySelector('.c-article-body,#article-body,article');
-      if(ab){ab.querySelectorAll('script,style,nav,.c-article-references,.c-article-info').forEach(e=>e.remove());content=ab.innerHTML;}
+      if(ab){ab.querySelectorAll('script,style,nav,.c-article-references,.c-article-info,.c-article-footer').forEach(e=>e.remove());content=ab.innerHTML;}
     }
     // 通用提取
     if(!content){
-      const sels=['article','[role="article"]','.article-content','.article-body','.post-content','.entry-content','.content-body','#article-content','#cont','.left_zw'];
+      const doc=new DOMParser().parseFromString(html,'text/html');
+      const sels=['article','[role="article"]','.article-content','.article-body','.post-content','.entry-content','.content-body','#article-content','.left_zw'];
       let best=null,bestLen=0;
       for(const sel of sels){const el=doc.querySelector(sel);if(el){const t=el.textContent.trim();if(t.length>bestLen){bestLen=t.length;best=el;}}}
       if(best&&bestLen>200){best.querySelectorAll('script,style,nav,footer,.ad,.sidebar,.comment,.related,.share,.social').forEach(e=>e.remove());content=best.innerHTML;}
     }
     if(content){
       content=content.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/style=\"[^\"]*\"/gi,'').replace(/<p[^>]*>\s*<\/p>/gi,'');
-      modalBody.innerHTML='<div class="article-full-content">'+content+'</div>';
+      const existing=modalBody.querySelector('.article-full-content');
+      if(existing){
+        // Replace summary with full content
+        existing.innerHTML=content;
+      }else{
+        modalBody.innerHTML='<div class="article-full-content">'+content+'</div>';
+      }
+      loader&&loader.remove();
     }else{
-      loader.innerHTML='💡 无法提取全文，请点击下方「跳转原文」查看';
+      if(loader)loader.innerHTML='<div style="padding:8px 12px;background:rgba(0,210,255,0.06);border-radius:8px;font-size:13px;color:var(--t3)">💡 点击下方「跳转原文」查看完整文章</div>';
     }
   }catch(e){
     console.warn('Article fetch failed:',url,e.message);
-    loader.innerHTML='💡 全文加载失败，请点击「跳转原文」查看';
+    if(loader)loader.innerHTML='<div style="padding:8px 12px;background:rgba(0,210,255,0.06);border-radius:8px;font-size:13px;color:var(--t3)">💡 全文加载失败，点击「跳转原文」查看</div>';
   }
-}
+}}
 
 function closeModal(){
   modal.classList.remove('show');
