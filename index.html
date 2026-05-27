@@ -277,7 +277,7 @@ a{color:inherit;text-decoration:none}
 
 <script>
 // ===== GitHub Pages 静态版 =====
-const CORS_PROXY='https://api.allorigins.win/raw?url=';
+const CORS_PROXY='https://api.codetabs.com/v1/proxy?quest=';
 function corsUrl(u){return CORS_PROXY+encodeURIComponent(u);}
 
 const CFG={
@@ -509,11 +509,22 @@ function openModal(item){
 
 async function fetchArticle(url,sid){
   const loader=document.getElementById('articleLoader');
+  if(!loader)return;
   try{
-    const proxyUrl=CORS_PROXY+encodeURIComponent(url);
-    const r=await ft(proxyUrl,15000);
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const html=await r.text();
+    // Try direct fetch first (faster, works for CORS-friendly sites)
+    let html=null;
+    try{
+      const r=await ft(url,6000);
+      if(r.ok)html=await r.text();
+    }catch(e){}
+    // Fallback to CORS proxy
+    if(!html){
+      loader.innerHTML='⏳ 通过代理加载中...';
+      const proxyUrl=CORS_PROXY+encodeURIComponent(url);
+      const r=await ft(proxyUrl,12000);
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      html=await r.text();
+    }
     const doc=new DOMParser().parseFromString(html,'text/html');
     let content='';
     
@@ -522,53 +533,35 @@ async function fetchArticle(url,sid){
       const scripts=doc.querySelectorAll('script');
       for(const s of scripts){
         const m=s.textContent.match(/var\s+contentTxt\s*=\s*["']([\s\S]*?)["'];/);
-        if(m){content=m[1].replace(/\\\//g,'/').replace(/\\n/g,'\n').replace(/<[^>]*style="[^"]*"[^>]*>/g,'');break;}
+        if(m){content=m[1].replace(/\\\//g,'/').replace(/\\n/g,'\n').replace(/style=\"[^\"]*\"/gi,'');break;}
       }
     }
-    
-    // Nature / Science：article body
+    // 中新网
+    if(!content && url.includes('chinanews.com')){
+      const art=doc.querySelector('.left_zw,.content,.article-content,#cont');
+      if(art){art.querySelectorAll('script,style').forEach(e=>e.remove());content=art.innerHTML;}
+    }
+    // Nature / Science
     if(!content && (url.includes('nature.com')||url.includes('science.org'))){
-      const ab=doc.querySelector('.c-article-body,#article-body,article .body,article');
-      if(ab){
-        // Clean up: remove scripts, styles, nav elements
-        ab.querySelectorAll('script,style,nav,.c-article-references,.article-references,.c-article-info,.article-info,.c-article-footer,.article-footer').forEach(e=>e.remove());
-        content=ab.innerHTML;
-      }
+      const ab=doc.querySelector('.c-article-body,#article-body,article');
+      if(ab){ab.querySelectorAll('script,style,nav,.c-article-references,.c-article-info').forEach(e=>e.remove());content=ab.innerHTML;}
     }
-    
-    // 通用提取：找最大的文本块
+    // 通用提取
     if(!content){
-      // Try common article containers
-      const selectors=['article','[role="article"]','.article-content','.article-body','.post-content','.entry-content','.content-body','#article-content','#content'];
+      const sels=['article','[role="article"]','.article-content','.article-body','.post-content','.entry-content','.content-body','#article-content','#cont','.left_zw'];
       let best=null,bestLen=0;
-      for(const sel of selectors){
-        const el=doc.querySelector(sel);
-        if(el){
-          const text=el.textContent.trim();
-          if(text.length>bestLen){bestLen=text.length;best=el;}
-        }
-      }
-      if(best&&bestLen>200){
-        best.querySelectorAll('script,style,nav,footer,.ad,.ads,.sidebar,.comment,.comments,.related,.share,.social').forEach(e=>e.remove());
-        content=best.innerHTML;
-      }
+      for(const sel of sels){const el=doc.querySelector(sel);if(el){const t=el.textContent.trim();if(t.length>bestLen){bestLen=t.length;best=el;}}}
+      if(best&&bestLen>200){best.querySelectorAll('script,style,nav,footer,.ad,.sidebar,.comment,.related,.share,.social').forEach(e=>e.remove());content=best.innerHTML;}
     }
-    
-    // Clean content
     if(content){
-      // Remove remaining scripts and styles
-      content=content.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'');
-      // Remove inline styles
-      content=content.replace(/style="[^"]*"/gi,'');
-      // Remove empty paragraphs
-      content=content.replace(/<p[^>]*>\s*<\/p>/gi,'');
+      content=content.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/style=\"[^\"]*\"/gi,'').replace(/<p[^>]*>\s*<\/p>/gi,'');
       modalBody.innerHTML='<div class="article-full-content">'+content+'</div>';
     }else{
-      if(loader)loader.innerHTML='💡 无法提取全文，请点击下方「跳转原文」查看';
+      loader.innerHTML='💡 无法提取全文，请点击下方「跳转原文」查看';
     }
   }catch(e){
     console.warn('Article fetch failed:',url,e.message);
-    if(loader)loader.innerHTML='💡 全文加载失败，请点击下方「跳转原文」查看';
+    loader.innerHTML='💡 全文加载失败，请点击「跳转原文」查看';
   }
 }
 
