@@ -160,6 +160,18 @@ a{color:inherit;text-decoration:none}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:3px}
 
 .pbar{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--tech),var(--cankao));transition:width .3s;width:0}
+
+.article-full-content{color:var(--t2);font-size:15px;line-height:1.9}
+.article-full-content p{margin-bottom:14px}
+.article-full-content img{max-width:100%;height:auto;border-radius:8px;margin:12px 0}
+.article-full-content h1,.article-full-content h2,.article-full-content h3,.article-full-content h4{margin:20px 0 10px;color:var(--t1);font-weight:700}
+.article-full-content a{color:var(--tech);text-decoration:underline}
+.article-full-content blockquote{border-left:3px solid var(--tech);padding-left:14px;margin:14px 0;color:var(--t3)}
+.article-full-content ul,.article-full-content ol{padding-left:20px;margin:10px 0}
+.article-full-content li{margin-bottom:6px}
+.article-full-content table{border-collapse:collapse;width:100%;margin:12px 0}
+.article-full-content td,.article-full-content th{border:1px solid var(--bd);padding:8px;text-align:left}
+
 </style>
 </head>
 <body>
@@ -478,13 +490,86 @@ function openModal(item){
   modalTime.textContent=fmtFullTime(item.pubDate);
   btnOriginal.href=item.link;
   
-  // 静态版：直接展示摘要，无需后端全文提取
+  // Show summary first, then try to fetch full article
   if(item.desc){
-    modalBody.innerHTML='<div style="color:var(--t2);line-height:1.8;font-size:15px">'+esc(item.desc)+'</div><div style="margin-top:16px;padding:12px;background:rgba(0,210,255,0.06);border-radius:8px;border:1px solid rgba(0,210,255,0.15);font-size:13px;color:var(--t3)">💡 点击下方「跳转原文」查看完整文章</div>';
+    modalBody.innerHTML='<div style="color:var(--t2);line-height:1.8;font-size:15px">'+esc(item.desc)+'</div><div id="articleLoader" style="margin-top:16px;padding:12px;background:rgba(0,210,255,0.06);border-radius:8px;border:1px solid rgba(0,210,255,0.15);font-size:13px;color:var(--t3)">⏳ 正在加载全文...</div>';
   }else{
-    modalBody.innerHTML='<div class="error-state"><div class="icon">📄</div><p>暂无摘要</p><p style="font-size:12px">请点击下方「跳转原文」按钮访问</p></div>';
+    modalBody.innerHTML='<div id="articleLoader" style="padding:12px;background:rgba(0,210,255,0.06);border-radius:8px;font-size:13px;color:var(--t3)">⏳ 正在加载全文...</div>';
   }
   modal.classList.add('show');
+  
+  // Try to fetch full article content via CORS proxy
+  if(item.link && !item.link.includes('xiaohongshu.com')){
+    fetchArticle(item.link, item.sid);
+  }else{
+    const loader=document.getElementById('articleLoader');
+    if(loader)loader.innerHTML='💡 点击下方「跳转原文」查看完整内容';
+  }
+}
+
+async function fetchArticle(url,sid){
+  const loader=document.getElementById('articleLoader');
+  try{
+    const proxyUrl=CORS_PROXY+encodeURIComponent(url);
+    const r=await ft(proxyUrl,15000);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const html=await r.text();
+    const doc=new DOMParser().parseFromString(html,'text/html');
+    let content='';
+    
+    // 参考消息：contentTxt变量
+    if(url.includes('cankaoxiaoxi.com')){
+      const scripts=doc.querySelectorAll('script');
+      for(const s of scripts){
+        const m=s.textContent.match(/var\s+contentTxt\s*=\s*["']([\s\S]*?)["'];/);
+        if(m){content=m[1].replace(/\\\//g,'/').replace(/\\n/g,'\n').replace(/<[^>]*style="[^"]*"[^>]*>/g,'');break;}
+      }
+    }
+    
+    // Nature / Science：article body
+    if(!content && (url.includes('nature.com')||url.includes('science.org'))){
+      const ab=doc.querySelector('.c-article-body,#article-body,article .body,article');
+      if(ab){
+        // Clean up: remove scripts, styles, nav elements
+        ab.querySelectorAll('script,style,nav,.c-article-references,.article-references,.c-article-info,.article-info,.c-article-footer,.article-footer').forEach(e=>e.remove());
+        content=ab.innerHTML;
+      }
+    }
+    
+    // 通用提取：找最大的文本块
+    if(!content){
+      // Try common article containers
+      const selectors=['article','[role="article"]','.article-content','.article-body','.post-content','.entry-content','.content-body','#article-content','#content'];
+      let best=null,bestLen=0;
+      for(const sel of selectors){
+        const el=doc.querySelector(sel);
+        if(el){
+          const text=el.textContent.trim();
+          if(text.length>bestLen){bestLen=text.length;best=el;}
+        }
+      }
+      if(best&&bestLen>200){
+        best.querySelectorAll('script,style,nav,footer,.ad,.ads,.sidebar,.comment,.comments,.related,.share,.social').forEach(e=>e.remove());
+        content=best.innerHTML;
+      }
+    }
+    
+    // Clean content
+    if(content){
+      // Remove remaining scripts and styles
+      content=content.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'');
+      // Remove inline styles
+      content=content.replace(/style="[^"]*"/gi,'');
+      // Remove empty paragraphs
+      content=content.replace(/<p[^>]*>\s*<\/p>/gi,'');
+      modalBody.innerHTML='<div class="article-full-content">'+content+'</div>';
+    }else{
+      if(loader)loader.innerHTML='💡 无法提取全文，请点击下方「跳转原文」查看';
+    }
+  }catch(e){
+    console.warn('Article fetch failed:',url,e.message);
+    if(loader)loader.innerHTML='💡 全文加载失败，请点击下方「跳转原文」查看';
+  }
 }
 
 function closeModal(){
