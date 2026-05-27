@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="每日要闻">
-<title>每日要闻 - 参考消息 · 环球时报 · Nature · Science</title>
+<title>每日要闻 - 新闻聚合</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
 <style>
@@ -14,7 +14,7 @@
 :root{
   --bg:#0a0e1a;--card:rgba(255,255,255,0.04);--card-h:rgba(255,255,255,0.08);
   --t1:#e8eaed;--t2:#9aa0a6;--t3:#5f6368;--bd:rgba(255,255,255,0.08);
-  --cankao:#F0B429;--huanqiu:#E74C3C;--nature:#FF6B35;--nbt:#2ECC71;--nchem:#E91E8C;--science:#7B68EE;
+  --cankao:#F0B429;--huanqiu:#E74C3C;--nature:#FF6B35;--nbt:#2ECC71;--nchem:#E91E8C;--science:#7B68EE;--xhs:#FF2442;
   --tech:#00D2FF;--mil:#FF6B6B;--hist:#A78BFA;--intl:#10B981;--pol:#F59E0B;--eco:#3B82F6;--liv:#FB923C;
   --r:12px;--font:'Noto Sans SC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
 }
@@ -47,6 +47,7 @@ a{color:inherit;text-decoration:none}
 .tag.on[data-s="nbt"]{background:rgba(46,204,113,0.12);color:var(--nbt);border-color:rgba(46,204,113,0.3)}
 .tag.on[data-s="nchem"]{background:rgba(233,30,140,0.12);color:var(--nchem);border-color:rgba(233,30,140,0.3)}
 .tag.on[data-s="science"]{background:rgba(123,104,238,0.12);color:var(--science);border-color:rgba(123,104,238,0.3)}
+.tag.on[data-s="xhs"]{background:rgba(255,36,66,0.12);color:var(--xhs);border-color:rgba(255,36,66,0.3)}
 
 .sbar{padding:8px 20px;display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--t3);border-bottom:1px solid var(--bd);background:rgba(0,0,0,0.2)}
 .sbar .dt{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;vertical-align:middle}
@@ -79,6 +80,8 @@ a{color:inherit;text-decoration:none}
 .stag[data-s="nchem"] .dt{background:var(--nchem)}
 .stag[data-s="science"]{color:var(--science);background:rgba(123,104,238,0.1)}
 .stag[data-s="science"] .dt{background:var(--science)}
+.stag[data-s="xhs"]{color:var(--xhs);background:rgba(255,36,66,0.1)}
+.stag[data-s="xhs"] .dt{background:var(--xhs)}
 .ctag{font-size:11px;padding:2px 7px;border-radius:8px;font-weight:500}
 .ctag[data-c="科技"]{color:var(--tech);background:rgba(0,210,255,0.1)}
 .ctag[data-c="军事"]{color:var(--mil);background:rgba(255,107,107,0.1)}
@@ -86,6 +89,7 @@ a{color:inherit;text-decoration:none}
 .ctag[data-c="国际"]{color:var(--intl);background:rgba(16,185,129,0.1)}
 .ctag[data-c="政治"]{color:var(--pol);background:rgba(245,158,11,0.1)}
 .ctag[data-c="经济"]{color:var(--eco);background:rgba(59,130,246,0.1)}
+.ctag[data-c="商业"]{color:#FF6B35;background:rgba(255,107,53,0.1)}
 .ctag[data-c="民生"]{color:var(--liv);background:rgba(251,146,60,0.1)}
 
 .ct{font-size:18px;font-weight:700;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:8px}
@@ -164,7 +168,7 @@ a{color:inherit;text-decoration:none}
   <div class="header-top">
     <div class="title-group">
       <h1>每日要闻</h1>
-      <div class="sub">参考消息 · 环球时报 · Nature · Nat.Biotech · Nat.Chem · Science</div>
+      <div class="sub">参考消息 · 环球时报 · Nature · Science · 小红书</div>
     </div>
     <div class="header-act">
       <div class="ref-info">
@@ -188,6 +192,7 @@ a{color:inherit;text-decoration:none}
     <span class="tag" data-cat="国际">🌍 国际</span>
     <span class="tag" data-cat="政治">🏛️ 政治</span>
     <span class="tag" data-cat="经济">💰 经济</span>
+    <span class="tag" data-cat="商业">📈 商业</span>
     <span class="tag" data-cat="民生">🏘️ 民生</span>
   </div>
   <div class="fbar">
@@ -199,6 +204,7 @@ a{color:inherit;text-decoration:none}
     <span class="tag" data-s="nbt">Nat.Biotech</span>
     <span class="tag" data-s="nchem">Nat.Chem</span>
     <span class="tag" data-s="science">Science</span>
+    <span class="tag" data-s="xhs">小红书</span>
   </div>
 </header>
 <div class="sbar" id="sbar"></div>
@@ -298,7 +304,8 @@ const CFG={
     {id:'science',name:'Science',apis:[
       corsUrl('https://feeds.science.org/rss/science.xml'),
       corsUrl('https://feeds.science.org/rss/science-aop.xml')
-    ],type:'rss'}
+    ],type:'rss'},
+    {id:'xhs',name:'小红书·资本论',apis:['data/xhs.json'],type:'local',srcName:'小红书'}
   ],
   cats:{
     '科技':['科技','技术','AI','芯片','航天','卫星','创新','数字化','量子','5G','6G','半导体','人工智能','机器人','无人机','计算机','互联网','大数据','算法','软件','网络安全','新能源','电池','光刻','超导','核聚变','深空','空间站','望远镜','SpaceX','OpenAI','GPT','大模型','自动驾驶','词元','Token','protein','CRISPR','genome','neural','photon','quantum','nanoparticle','catalyst','polymer','RNA','DNA','cell','molecule','synthesis','laser','plasma','fusion','superconductor','qubit','transistor','sensor','detector','algorithm','telescope','orbital','mars','lunar','rocket'],
@@ -307,6 +314,7 @@ const CFG={
     '国际':['国际','外交','总统','俄罗斯','中东','欧洲','亚太','联合国','欧盟','东盟','G7','G20','峰会','访问','会谈','制裁','关税','贸易','双边','多边','使馆','大使','外交部','国务院','白宫','克里姆林宫','唐宁街','总理','默茨','鲁比奥','特朗普','普京','伊朗'],
     '政治':['政治','两会','人大','政协','立法','国务院','中央','党委','政治局','总书记','国策','政策','改革','治理','反腐','巡视','纪委','监察','巡视','选举','换届','统一','台湾','港澳','一国两制','涉台','涉港','涉疆','涉藏','主权','领土','宪政','法律','法治','司法','立法','执法','司法解释','监察委','巡视组','中纪委','国新办','中宣部','统战'],
     '经济':['经济','GDP','CPI','PPI','PMI','通胀','通缩','利率','降息','加息','央行','货币政策','财政','税收','降准','融资','信贷','股市','A股','港股','美股','基金','债券','外汇','汇率','人民币','美元','比特币','房产','房价','楼市','房地产','基建','投资','消费','进出口','贸易','顺差','逆差','关税','供应链','产业链','制造业','工业','农业','乡村振兴','就业','失业','退休','养老金','社保','医保','银行','保险','金融','券商','上市','并购','重组','破产','债务','杠杆','泡沫','碳交易','碳排放','ESG','绿色','新能源车','电动汽车','比亚迪','特斯拉','华为','腾讯','阿里','小米','字节','OpenAI','英伟达','台积电','高通','intel','NVIDIA','Tesla','Apple'],
+    '商业':['商业','资本','融资','IPO','上市','创投','独角兽','估值','营收','利润','财报','市值','品牌','营销','消费升级','新消费','供应链','行业','赛道','风口','烧钱','变现','商业模式','产业链','红杉','高瓴','经纬','估值','并购','重组','收购','私有化','退市','港股','纳斯达克','纽交所','科创板','北交所'],
     '民生':['民生','医疗','医院','医生','看病','挂号','药价','医保','社保','养老','退休金','低保','补贴','公积金','生育','育儿','幼儿园','学区','中考','高考','考研','大学','学费','就业','工资','收入','物价','房价','房租','交通','地铁','高铁','铁路','航空','机票','出行','环保','污染','碳排放','垃圾','供暖','水电','燃气','食品','安全','疫苗','疫情','流感','传染病','健康','体检','养老院','居家养老','社区','物业','住房','公租房','廉租房','棚改','旧改','拆迁','城建','城市化','农民工','留守儿童','适老化']
   }
 };
@@ -371,7 +379,11 @@ async function fetchFromAPI(apiUrl,sid){
     if(!r.ok)return null;
     const text=await r.text();
 
-    if(type==='ckxx'){
+    if(type==='local'){
+      const raw=JSON.parse(text);
+      return(raw.items||[]).map(d=>({title:d.title||'',link:d.link||'',desc:d.desc||'',publishTime:d.publishTime||'',sourceName:d.sourceName||srcName,source:d.source||'xhs'})).filter(i=>i.title);
+    }else if(type==='ckxx'){
+
       // 参考消息JSON格式
       const raw=JSON.parse(text);
       return (raw.list||[]).map(d=>{
